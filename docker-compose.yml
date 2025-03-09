@@ -21,7 +21,7 @@ services:
     networks:
       - ewm-net
     ports:
-      - 9091:9091
+      - "9091:9091"
     environment:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
       - SERVER_PORT=9091
@@ -78,7 +78,7 @@ services:
       - POSTGRES_USER=root
       - POSTGRES_DB=ewm-stats
     ports:
-      - 5433:5432
+      - "5433:5432"
     networks:
       - ewm-net
     healthcheck:
@@ -115,7 +115,7 @@ services:
     image: postgres:16.1
     container_name: postgres-ewm-main-db
     ports:
-      - 5432:5432
+      - "5432:5432"
     networks:
       - ewm-net
     environment:

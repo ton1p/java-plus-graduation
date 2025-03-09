@@ -2,12 +2,10 @@ package ewm.comment.mapper;
 
 import ewm.comment.dto.CommentDto;
 import ewm.comment.model.Comment;
-import org.mapstruct.Mapper;
-import org.mapstruct.factory.Mappers;
+import ewm.user.dto.UserDto;
 
-@Mapper
-public interface CommentMapper {
-    CommentMapper INSTANCE = Mappers.getMapper(CommentMapper.class);
-
-    CommentDto commentToCommentDto(Comment comment);
+public class CommentMapper {
+    public static CommentDto commentToCommentDto(Comment comment, UserDto userDto) {
+        return new CommentDto(comment.getId(), comment.getContent(), userDto);
+    }
 }

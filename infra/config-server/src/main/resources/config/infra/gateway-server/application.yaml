@@ -8,7 +8,11 @@ spring:
         - id: main-service
           uri: lb://main-service
           predicates:
-            - Path=/categories/**, /admin/**, /users/**, /events/**, /compilations/**
+            - Path=/categories/**, /admin/categories/**, /admin/compilations/**, /admin/events/**, /users/**, /events/**, /compilations/**
+        - id: user-service
+          uri: lb://user-service
+          predicates:
+            - Path=/admin/users/**
         - id: stats-server
           uri: lb://stats-server
           predicates:

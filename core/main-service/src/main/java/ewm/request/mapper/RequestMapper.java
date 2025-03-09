@@ -13,7 +13,6 @@ public interface RequestMapper {
 	RequestMapper INSTANCE = Mappers.getMapper(RequestMapper.class);
 
 	@Mapping(source = "event.id", target = "event")
-	@Mapping(source = "requester.id", target = "requester")
 	@Mapping(source = "created", target = "created", dateFormat = "yyyy-MM-dd HH:mm:ss")
 	RequestDto mapToRequestDto(Request request);
 

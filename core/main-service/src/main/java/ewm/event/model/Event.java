@@ -1,7 +1,6 @@
 package ewm.event.model;
 
 import ewm.category.model.Category;
-import ewm.user.model.User;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -36,9 +35,7 @@ public class Event {
 	@JoinColumn(name = "category_id")
 	private Category category;
 
-	@ManyToOne
-	@JoinColumn(name = "user_id")
-	private User initiator;
+	private Long initiator;
 
 	private Double lat;
 	private Double lon;
