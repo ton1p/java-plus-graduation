@@ -5,18 +5,22 @@ spring:
     gateway:
       discovery.locator.enabled: true
       routes:
-        - id: main-service
-          uri: lb://main-service
-          predicates:
-            - Path=/categories/**, /admin/categories/**, /admin/compilations/**, /admin/events/**, /users/**, /events/**, /compilations/**
         - id: user-service
           uri: lb://user-service
           predicates:
             - Path=/admin/users/**
+        - id: comment-service
+          uri: lb://comment-service
+          predicates:
+            - Path=/users/*/events/*/comments/**, /events/*/comments/**
         - id: stats-server
           uri: lb://stats-server
           predicates:
             - Path=/hit/**, /stats/**
+        - id: main-service
+          uri: lb://main-service
+          predicates:
+            - Path=/categories/**, /admin/categories/**, /admin/compilations/**, /admin/events/**, /users/*/requests/**, /users/*/events/**, /users/*/events/*/requests/**, /events/**, /compilations/**
 eureka:
   client:
     serviceUrl:

@@ -23,5 +23,6 @@
         <module>main-service</module>
         <module>user-service</module>
         <module>interaction-api</module>
+        <module>comment-service</module>
     </modules>
 </project>

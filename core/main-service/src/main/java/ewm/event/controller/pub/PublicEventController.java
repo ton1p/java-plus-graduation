@@ -20,17 +20,22 @@ import java.util.List;
 @RequiredArgsConstructor
 @RequestMapping("/events")
 public class PublicEventController {
-	private final EventService eventService;
+    private final EventService eventService;
 
-	@GetMapping
-	public List<EventDto> publicGetEvents(HttpServletRequest request, PublicGetEventRequestDto requestParams) {
-		log.info("Получить события, согласно устловиям -> {}", requestParams);
-		return eventService.publicGetEvents(requestParams, request);
-	}
+    @GetMapping
+    public List<EventDto> publicGetEvents(HttpServletRequest request, PublicGetEventRequestDto requestParams) {
+        log.info("Получить события, согласно устловиям -> {}", requestParams);
+        return eventService.publicGetEvents(requestParams, request);
+    }
 
-	@GetMapping("/{id}")
-	EventDto publicGetEvent(@PathVariable Long id,
-							HttpServletRequest request) {
-		return eventService.publicGetEvent(id, request);
-	}
+    @GetMapping("/{id}")
+    public EventDto publicGetEvent(@PathVariable Long id,
+                                   HttpServletRequest request) {
+        return eventService.publicGetEvent(id, request);
+    }
+
+    @GetMapping("/public/{eventId}")
+    public EventDto getById(@PathVariable Long eventId) {
+        return eventService.getEventById(eventId);
+    }
 }

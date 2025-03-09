@@ -7,8 +7,8 @@ import ewm.comment.model.Comment;
 import ewm.comment.repository.CommentRepository;
 import ewm.error.exception.ConflictException;
 import ewm.error.exception.NotFoundException;
-import ewm.event.EventRepository;
-import ewm.event.model.Event;
+import ewm.event.client.EventClient;
+import ewm.event.dto.EventDto;
 import ewm.user.client.UserClient;
 import ewm.user.dto.UserDto;
 import lombok.RequiredArgsConstructor;
@@ -25,18 +25,18 @@ import java.util.Optional;
 public class CommentServiceImpl implements CommentService {
     private static final String COMMENT_NOT_FOUND = "Comment not found";
     private final CommentRepository commentRepository;
-    private final EventRepository eventRepository;
     private final UserClient userClient;
+    private final EventClient eventClient;
 
     @Override
     @Transactional
     public CommentDto addComment(Long userId, Long eventId, CreateCommentDto createCommentDto) {
         UserDto user = getUserById(userId);
-        Event event = getEventById(eventId);
+        EventDto event = getEventById(eventId);
 
         Comment comment = Comment.builder()
                 .author(user.getId())
-                .event(event)
+                .eventId(event.getId())
                 .content(createCommentDto.getContent())
                 .build();
 
@@ -98,12 +98,8 @@ public class CommentServiceImpl implements CommentService {
         return userClient.findById(userId);
     }
 
-    private Event getEventById(Long eventId) {
-        Optional<Event> optionalEvent = eventRepository.findById(eventId);
-        if (optionalEvent.isEmpty()) {
-            throw new NotFoundException("Event not found");
-        }
-        return optionalEvent.get();
+    private EventDto getEventById(Long eventId) {
+        return eventClient.getById(eventId);
     }
 
     private Comment getCommentById(Long commentId) {

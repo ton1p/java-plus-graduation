@@ -61,6 +61,17 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
+    public EventDto getEventById(Long eventId) {
+        Optional<Event> eventOptional = repository.findById(eventId);
+        if (eventOptional.isEmpty()) {
+            throw new NotFoundException(EVENT_NOT_FOUND_MESSAGE);
+        }
+        Event event = eventOptional.get();
+        UserDto userDto = getUser(event.getInitiator());
+        return eventToDto(event, userDto);
+    }
+
+    @Override
     public EventDto createEvent(Long userId, CreateEventDto eventDto) {
         UserDto userDto = getUser(userId);
         Category category = getCategory(eventDto.getCategory());
@@ -128,9 +139,7 @@ public class EventServiceImpl implements EventService {
             List<String> uris = getListOfUri(events, request.getRequestURI());
 
             Map<Long, Long> views = statisticsService.getStats(oldestEventPublishedOn, LocalDateTime.now(), uris);
-            events
-                    .stream()
-                    .peek(event -> event.setViews(views.get(event.getId())));
+            events.forEach(event -> event.setViews(views.get(event.getId())));
             events = repository.saveAll(events);
         }
         return EventMapper.mapToEventDto(events, this::getUser);
@@ -167,17 +176,13 @@ public class EventServiceImpl implements EventService {
         List<Request> requests = requestRepository.findAllById(request.getRequestIds());
         if (request.getStatus().equals(RequestStatus.REJECTED)) {
             checkRequestsStatus(requests);
-            requests.stream()
-                    .map(tmpReq -> changeStatus(tmpReq, RequestStatus.REJECTED))
-                    .toList();
+            requests.forEach(tmpReq -> changeStatus(tmpReq, RequestStatus.REJECTED));
             requestRepository.saveAll(requests);
             response.setRejectedRequests(RequestMapper.INSTANCE.mapListRequests(requests));
         } else {
             if (requests.size() + event.getConfirmedRequests() > event.getParticipantLimit())
                 throw new ConflictException("Превышен лимит заявок");
-            requests.stream()
-                    .map(tmpReq -> changeStatus(tmpReq, RequestStatus.CONFIRMED))
-                    .toList();
+            requests.forEach(tmpReq -> changeStatus(tmpReq, RequestStatus.CONFIRMED));
             requestRepository.saveAll(requests);
             event.setConfirmedRequests(event.getConfirmedRequests() + requests.size());
             repository.save(event);
@@ -252,14 +257,11 @@ public class EventServiceImpl implements EventService {
                     event.setState(EventState.PUBLISHED);
                     event.setPublishedOn(LocalDateTime.now());
                     break;
-                case CANCEL_REVIEW:
+                case CANCEL_REVIEW, REJECT_EVENT:
                     event.setState(EventState.CANCELED);
                     break;
                 case SEND_TO_REVIEW:
                     event.setState(EventState.PENDING);
-                    break;
-                case REJECT_EVENT:
-                    event.setState(EventState.CANCELED);
                     break;
             }
         }
@@ -345,9 +347,8 @@ public class EventServiceImpl implements EventService {
         return uri + "/" + eventId;
     }
 
-    private Request changeStatus(Request request, RequestStatus status) {
+    private void changeStatus(Request request, RequestStatus status) {
         request.setStatus(status);
-        return request;
     }
 
     private void checkRequestsStatus(List<Request> requests) {

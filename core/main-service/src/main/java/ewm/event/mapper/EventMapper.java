@@ -8,7 +8,6 @@ import ewm.event.model.Event;
 import ewm.user.dto.UserDto;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -21,8 +20,7 @@ public class EventMapper {
         event.setAnnotation(dto.getAnnotation());
         event.setCreatedOn(LocalDateTime.now());
         event.setDescription(dto.getDescription());
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-        LocalDateTime dateTime = LocalDateTime.parse(dto.getEventDate(), formatter);
+        LocalDateTime dateTime = dto.getEventDate();
         event.setEventDate(dateTime);
         event.setPaid(dto.getPaid());
         event.setParticipantLimit(dto.getParticipantLimit());
