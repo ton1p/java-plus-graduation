@@ -5,13 +5,11 @@ import feign.FeignException;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.*;
 
-// todo change name to event-service after extract
-@FeignClient(name = "main-service")
+import java.util.List;
+
+@FeignClient(name = "event-service")
 public interface EventClient {
     @Retryable(retryFor = {FeignException.class}, maxAttempts = 5, backoff = @Backoff(delay = 2000))
     @GetMapping("/events/public/{eventId}")
@@ -20,4 +18,10 @@ public interface EventClient {
 
     @PutMapping("/events/{id}")
     EventDto updateEvent(@PathVariable Long id, @RequestBody EventDto event);
+
+    @GetMapping("/events/category/{categoryId}")
+    List<EventDto> findAllByCategoryId(@PathVariable Long categoryId);
+
+    @GetMapping("/events/public")
+    List<EventDto> findAllByIds(@RequestParam List<Long> ids);
 }

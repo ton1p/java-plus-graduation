@@ -25,5 +25,6 @@
         <module>interaction-api</module>
         <module>comment-service</module>
         <module>request-service</module>
+        <module>event-service</module>
     </modules>
 </project>

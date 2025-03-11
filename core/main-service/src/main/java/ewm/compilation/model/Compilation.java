@@ -1,6 +1,5 @@
 package ewm.compilation.model;
 
-import ewm.event.model.Event;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -17,19 +16,16 @@ import java.util.List;
 @AllArgsConstructor
 public class Compilation {
 
-	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private Long id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-	@ManyToMany
-	@JoinTable(
-			name = "compilations_events",
-			joinColumns = {@JoinColumn(name = "id")},
-			inverseJoinColumns = {@JoinColumn(name = "event_id")}
-	)
-	private List<Event> events;
+    @ElementCollection
+    @CollectionTable(name = "compilations_events", joinColumns = @JoinColumn(name = "id"))
+    @Column(name = "event_id")
+    private List<Long> events;
 
-	private Boolean pinned;
+    private Boolean pinned;
 
-	private String title;
+    private String title;
 }

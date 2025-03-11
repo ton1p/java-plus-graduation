@@ -2,16 +2,18 @@ package ewm.compilation.mapper;
 
 import ewm.compilation.dto.CompilationDtoResponse;
 import ewm.compilation.model.Compilation;
-import org.mapstruct.Mapper;
-import org.mapstruct.factory.Mappers;
+import ewm.event.dto.EventDto;
 
 import java.util.List;
+import java.util.function.Function;
 
-@Mapper
-public interface CompilationMapper {
-	CompilationMapper INSTANCE = Mappers.getMapper(CompilationMapper.class);
+public class CompilationMapper {
+    public static CompilationDtoResponse compilationToCompilationDtoResponse(Compilation compilation, Function<Long, EventDto> getEventDtoFn) {
+        List<EventDto> events = compilation.getEvents().stream().map(getEventDtoFn).toList();
+        return new CompilationDtoResponse(compilation.getId(), events, compilation.getPinned(), compilation.getTitle());
+    }
 
-	CompilationDtoResponse compilationToCompilationDtoResponse(Compilation compilation);
-
-	List<CompilationDtoResponse> mapListCompilations(List<Compilation> compilations);
+    public static List<CompilationDtoResponse> mapListCompilations(List<Compilation> compilations, Function<Long, EventDto> getEventDtoFn) {
+        return compilations.stream().map((compilation) -> compilationToCompilationDtoResponse(compilation, getEventDtoFn)).toList();
+    }
 }

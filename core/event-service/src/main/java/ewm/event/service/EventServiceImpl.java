@@ -1,7 +1,7 @@
-package ewm.event;
+package ewm.event.service;
 
-import ewm.category.model.Category;
-import ewm.category.repository.CategoryRepository;
+import ewm.category.client.CategoryClient;
+import ewm.category.dto.CategoryDto;
 import ewm.error.exception.ConflictException;
 import ewm.error.exception.NotFoundException;
 import ewm.error.exception.ValidationException;
@@ -10,6 +10,7 @@ import ewm.event.mapper.EventMapper;
 import ewm.event.model.Event;
 import ewm.event.model.EventState;
 import ewm.event.model.StateAction;
+import ewm.event.repository.EventRepository;
 import ewm.request.client.RequestClient;
 import ewm.request.dto.RequestDto;
 import ewm.request.model.RequestStatus;
@@ -36,17 +37,17 @@ import java.util.stream.Collectors;
 public class EventServiceImpl implements EventService {
     private static final String EVENT_NOT_FOUND_MESSAGE = "Event not found";
     private final EventRepository repository;
-    private final CategoryRepository categoryRepository;
     private final StatisticsService statisticsService;
     private final UserClient userClient;
     private final RequestClient requestClient;
+    private final CategoryClient categoryClient;
 
     @Override
     public List<EventDto> getEvents(Long userId, Integer from, Integer size) {
         UserDto userDto = getUser(userId);
         Pageable pageable = PageRequest.of(from, size);
         return repository.findByInitiator(userId, pageable).stream()
-                .map(event -> eventToDto(event, userDto))
+                .map(event -> eventToDto(event, userDto, getCategory(event.getCategory())))
                 .toList();
     }
 
@@ -57,7 +58,7 @@ public class EventServiceImpl implements EventService {
         if (event.isEmpty()) {
             throw new NotFoundException(EVENT_NOT_FOUND_MESSAGE);
         }
-        return eventToDto(event.get(), userDto);
+        return eventToDto(event.get(), userDto, getCategory(event.get().getCategory()));
     }
 
     @Override
@@ -68,14 +69,14 @@ public class EventServiceImpl implements EventService {
         }
         Event event = eventOptional.get();
         UserDto userDto = getUser(event.getInitiator());
-        return eventToDto(event, userDto);
+        return eventToDto(event, userDto, getCategory(event.getCategory()));
     }
 
     @Override
     @Transactional
     public EventDto createEvent(Long userId, CreateEventDto eventDto) {
         UserDto userDto = getUser(userId);
-        Category category = getCategory(eventDto.getCategory());
+        CategoryDto category = getCategory(eventDto.getCategory());
         Event event = EventMapper.mapCreateDtoToEvent(eventDto);
         if (event.getPaid() == null) {
             event.setPaid(false);
@@ -88,10 +89,10 @@ public class EventServiceImpl implements EventService {
         }
 
         event.setInitiator(userDto.getId());
-        event.setCategory(category);
+        event.setCategory(category.getId());
         event.setState(EventState.PENDING);
         Event newEvent = repository.save(event);
-        return eventToDto(newEvent, userDto);
+        return eventToDto(newEvent, userDto, category);
     }
 
     @Override
@@ -108,7 +109,7 @@ public class EventServiceImpl implements EventService {
         }
         updateEventFields(eventDto, foundEvent);
         Event saved = repository.save(foundEvent);
-        return eventToDto(saved, userDto);
+        return eventToDto(saved, userDto, getCategory(saved.getCategory()));
     }
 
     @Override
@@ -145,7 +146,7 @@ public class EventServiceImpl implements EventService {
             events.forEach(event -> event.setViews(views.get(event.getId())));
             events = repository.saveAll(events);
         }
-        return EventMapper.mapToEventDto(events, this::getUser);
+        return EventMapper.mapToEventDto(events, this::getUser, this::getCategory);
     }
 
     @Override
@@ -153,6 +154,7 @@ public class EventServiceImpl implements EventService {
     public EventDto publicGetEvent(Long id, HttpServletRequest request) {
         Event event = getEvent(id);
         UserDto userDto = getUser(event.getInitiator());
+        CategoryDto category = getCategory(event.getCategory());
         if (event.getState() != EventState.PUBLISHED) {
             throw new NotFoundException("Событие не найдено");
         }
@@ -161,7 +163,7 @@ public class EventServiceImpl implements EventService {
                 event.getPublishedOn(), LocalDateTime.now(), List.of(request.getRequestURI())).get(id);
         event.setViews(views);
         event = repository.save(event);
-        return EventMapper.mapEventToEventDto(event, userDto);
+        return EventMapper.mapEventToEventDto(event, userDto, category);
     }
 
     @Override
@@ -218,7 +220,17 @@ public class EventServiceImpl implements EventService {
                 eventDto.getViews(),
                 eventDto.getConfirmedRequests()
         );
-        return EventMapper.mapEventToEventDto(repository.save(updatedEvent), eventDto.getInitiator());
+        return EventMapper.mapEventToEventDto(repository.save(updatedEvent), eventDto.getInitiator(), eventDto.getCategory());
+    }
+
+    @Override
+    public List<EventDto> findAllByCategoryId(Long categoryId) {
+        return EventMapper.mapToEventDto(repository.findAllByCategory(categoryId), this::getUser, this::getCategory);
+    }
+
+    @Override
+    public List<EventDto> findAllByIds(List<Long> ids) {
+        return EventMapper.mapToEventDto(repository.findAllById(ids), this::getUser, this::getCategory);
     }
 
     @Override
@@ -232,21 +244,22 @@ public class EventServiceImpl implements EventService {
                 PageRequest.of(requestParams.getFrom() / requestParams.getSize(),
                         requestParams.getSize())
         );
-        return EventMapper.mapToEventDto(events, this::getUser);
+        return EventMapper.mapToEventDto(events, this::getUser, this::getCategory);
     }
 
     @Override
     @Transactional
-    public EventDto adminChangeEvent(Long eventId, UpdateEventDto eventDto) {
+    public EventDto adminChangeEvent(Long eventId, UpdateEventDto updateEventDto) {
         Event event = getEvent(eventId);
         UserDto userDto = getUser(event.getInitiator());
-        checkEventForUpdate(event, eventDto.getStateAction());
-        Event updatedEvent = repository.save(prepareEventForUpdate(event, eventDto));
-        return EventMapper.mapEventToEventDto(updatedEvent, userDto);
+        CategoryDto category = getCategory(event.getCategory());
+        checkEventForUpdate(event, updateEventDto.getStateAction());
+        Event updatedEvent = repository.save(prepareEventForUpdate(event, updateEventDto));
+        return EventMapper.mapEventToEventDto(updatedEvent, userDto, category);
     }
 
-    private EventDto eventToDto(Event event, UserDto userDto) {
-        return EventMapper.mapEventToEventDto(event, userDto);
+    private EventDto eventToDto(Event event, UserDto userDto, CategoryDto category) {
+        return EventMapper.mapEventToEventDto(event, userDto, category);
     }
 
     private Event getEvent(Long eventId) {
@@ -308,19 +321,15 @@ public class EventServiceImpl implements EventService {
         return userClient.findById(userId);
     }
 
-    private Category getCategory(Long categoryId) {
-        Optional<Category> category = categoryRepository.findById(categoryId);
-        if (category.isEmpty()) {
-            throw new NotFoundException("Категория не найдена");
-        }
-        return category.get();
+    private CategoryDto getCategory(Long categoryId) {
+        return categoryClient.getCategory(categoryId);
     }
 
 
     private void updateEventFields(UpdateEventDto eventDto, Event foundEvent) {
         if (eventDto.getCategory() != null) {
-            Category category = getCategory(eventDto.getCategory());
-            foundEvent.setCategory(category);
+            CategoryDto category = getCategory(eventDto.getCategory());
+            foundEvent.setCategory(category.getId());
         }
 
         if (eventDto.getAnnotation() != null && !eventDto.getAnnotation().isBlank()) {

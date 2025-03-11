@@ -1,7 +1,7 @@
 package ewm.event.controller.priv;
 
-import ewm.event.EventService;
 import ewm.event.dto.*;
+import ewm.event.service.EventService;
 import ewm.event.validate.EventValidate;
 import ewm.request.dto.RequestDto;
 import jakarta.servlet.http.HttpServletRequest;

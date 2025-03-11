@@ -1,4 +1,4 @@
-package ewm.event;
+package ewm.event.service;
 
 import ewm.event.dto.*;
 import ewm.request.dto.RequestDto;
@@ -30,4 +30,8 @@ public interface EventService {
     EventRequestStatusUpdateResult changeStatusEventRequests(Long userId, Long eventId, EventRequestStatusUpdateRequest request);
 
     EventDto update(Long id, EventDto event);
+
+    List<EventDto> findAllByCategoryId(Long categoryId);
+
+    List<EventDto> findAllByIds(List<Long> ids);
 }

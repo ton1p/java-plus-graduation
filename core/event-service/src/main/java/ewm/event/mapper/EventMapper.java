@@ -1,6 +1,6 @@
 package ewm.event.mapper;
 
-import ewm.category.mapper.CategoryMapper;
+import ewm.category.dto.CategoryDto;
 import ewm.event.dto.CreateEventDto;
 import ewm.event.dto.EventDto;
 import ewm.event.dto.LocationDto;
@@ -31,7 +31,7 @@ public class EventMapper {
         return event;
     }
 
-    public static EventDto mapEventToEventDto(Event event, UserDto userDto) {
+    public static EventDto mapEventToEventDto(Event event, UserDto userDto, CategoryDto categoryDto) {
         return EventDto.builder()
                 .id(event.getId())
                 .title(event.getTitle())
@@ -43,7 +43,7 @@ public class EventMapper {
                 .state(event.getState())
                 .participantLimit(event.getParticipantLimit())
                 .location(LocationDto.builder().lat(event.getLat()).lon(event.getLon()).build())
-                .category(CategoryMapper.INSTANCE.categoryToCategoryDto(event.getCategory()))
+                .category(categoryDto)
                 .initiator(userDto)
                 .requestModeration(event.getRequestModeration())
                 .views((event.getViews() == null) ? 0L : event.getViews())
@@ -51,11 +51,12 @@ public class EventMapper {
                 .build();
     }
 
-    public static List<EventDto> mapToEventDto(Iterable<Event> events, Function<Long, UserDto> getUserFunction) {
+    public static List<EventDto> mapToEventDto(Iterable<Event> events, Function<Long, UserDto> getUserFunction, Function<Long, CategoryDto> getCategoryFunction) {
         List<EventDto> list = new ArrayList<>();
         for (Event event : events) {
             UserDto userDto = getUserFunction.apply(event.getInitiator());
-            list.add(mapEventToEventDto(event, userDto));
+            CategoryDto categoryDto = getCategoryFunction.apply(event.getCategory());
+            list.add(mapEventToEventDto(event, userDto, categoryDto));
         }
         return list;
     }

@@ -1,8 +1,8 @@
 package ewm.event.controller.pub;
 
-import ewm.event.EventService;
 import ewm.event.dto.EventDto;
 import ewm.event.dto.PublicGetEventRequestDto;
+import ewm.event.service.EventService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,5 +39,15 @@ public class PublicEventController {
     @PutMapping("/{id}")
     EventDto updateEvent(@PathVariable Long id, @RequestBody EventDto event) {
         return eventService.update(id, event);
+    }
+
+    @GetMapping("/category/{categoryId}")
+    public List<EventDto> findAllByCategoryId(@PathVariable Long categoryId) {
+        return eventService.findAllByCategoryId(categoryId);
+    }
+
+    @GetMapping("/public")
+    public List<EventDto> findAllByIds(@RequestParam List<Long> ids) {
+        return eventService.findAllByIds(ids);
     }
 }

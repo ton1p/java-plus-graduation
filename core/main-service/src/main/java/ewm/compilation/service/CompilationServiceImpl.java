@@ -7,8 +7,8 @@ import ewm.compilation.mapper.CompilationMapper;
 import ewm.compilation.model.Compilation;
 import ewm.compilation.repositry.CompilationRepository;
 import ewm.error.exception.NotFoundException;
-import ewm.event.EventRepository;
-import ewm.event.model.Event;
+import ewm.event.client.EventClient;
+import ewm.event.dto.EventDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -26,19 +27,19 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class CompilationServiceImpl implements CompilationService {
     private final CompilationRepository compilationRepository;
-    private final EventRepository eventRepository;
+    private final EventClient eventClient;
 
     @Transactional
     @Override
     public CompilationDtoResponse createCompilation(CompilationDto compilationDto) {
-        List<Event> events = compilationDto.getEvents() == null ?
-                new ArrayList<>() : eventRepository.findAllById(compilationDto.getEvents());
+        List<EventDto> events = compilationDto.getEvents() == null ?
+                new ArrayList<>() : eventClient.findAllByIds(compilationDto.getEvents());
         Compilation compilation = Compilation.builder()
-                .events(events)
+                .events(events.stream().map(EventDto::getId).toList())
                 .title(compilationDto.getTitle())
                 .pinned(compilationDto.getPinned())
                 .build();
-        return CompilationMapper.INSTANCE.compilationToCompilationDtoResponse(compilationRepository.save(compilation));
+        return CompilationMapper.compilationToCompilationDtoResponse(compilationRepository.save(compilation), eventClient::getById);
     }
 
     @Transactional
@@ -53,11 +54,11 @@ public class CompilationServiceImpl implements CompilationService {
     public CompilationDtoResponse updateCompilation(Long compId, CompilationDtoUpdate compilationDto) {
         Compilation compilation = getCompFromRepo(compId);
         if (compilationDto.getEvents() != null && !compilationDto.getEvents().isEmpty()) {
-            compilation.setEvents(eventRepository.findAllById(compilationDto.getEvents()));
+            compilation.setEvents(eventClient.findAllByIds(compilationDto.getEvents()).stream().map(EventDto::getId).collect(Collectors.toList()));
         }
         if (compilationDto.getPinned() != null) compilation.setPinned(compilationDto.getPinned());
         if (compilationDto.getTitle() != null) compilation.setTitle(compilationDto.getTitle());
-        return CompilationMapper.INSTANCE.compilationToCompilationDtoResponse(compilationRepository.save(compilation));
+        return CompilationMapper.compilationToCompilationDtoResponse(compilationRepository.save(compilation), eventClient::getById);
     }
 
     @Override
@@ -65,13 +66,13 @@ public class CompilationServiceImpl implements CompilationService {
         int page = from / size;
         Pageable pageRequest = PageRequest.of(page, size);
         if (pinned != null)
-            return CompilationMapper.INSTANCE.mapListCompilations(compilationRepository.findByPinned(pinned, pageRequest));
-        return CompilationMapper.INSTANCE.mapListCompilations(compilationRepository.findAll(pageRequest).getContent());
+            return CompilationMapper.mapListCompilations(compilationRepository.findByPinned(pinned, pageRequest), eventClient::getById);
+        return CompilationMapper.mapListCompilations(compilationRepository.findAll(pageRequest).getContent(), eventClient::getById);
     }
 
     @Override
     public CompilationDtoResponse getCompilation(Long compId) {
-        return CompilationMapper.INSTANCE.compilationToCompilationDtoResponse(getCompFromRepo(compId));
+        return CompilationMapper.compilationToCompilationDtoResponse(getCompFromRepo(compId), eventClient::getById);
     }
 
     private Compilation getCompFromRepo(Long compId) {
