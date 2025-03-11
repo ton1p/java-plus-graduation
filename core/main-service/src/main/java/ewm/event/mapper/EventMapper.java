@@ -40,7 +40,7 @@ public class EventMapper {
                 .paid(event.getPaid())
                 .createdOn(event.getCreatedOn())
                 .description(event.getDescription())
-                .state(event.getState().toString())
+                .state(event.getState())
                 .participantLimit(event.getParticipantLimit())
                 .location(LocationDto.builder().lat(event.getLat()).lon(event.getLon()).build())
                 .category(CategoryMapper.INSTANCE.categoryToCategoryDto(event.getCategory()))
@@ -52,11 +52,11 @@ public class EventMapper {
     }
 
     public static List<EventDto> mapToEventDto(Iterable<Event> events, Function<Long, UserDto> getUserFunction) {
-        List<EventDto> dtos = new ArrayList<>();
+        List<EventDto> list = new ArrayList<>();
         for (Event event : events) {
             UserDto userDto = getUserFunction.apply(event.getInitiator());
-            dtos.add(mapEventToEventDto(event, userDto));
+            list.add(mapEventToEventDto(event, userDto));
         }
-        return dtos;
+        return list;
     }
 }

@@ -2,8 +2,8 @@ package ewm.request.service;
 
 import ewm.error.exception.ConflictException;
 import ewm.error.exception.NotFoundException;
-import ewm.event.EventRepository;
-import ewm.event.model.Event;
+import ewm.event.client.EventClient;
+import ewm.event.dto.EventDto;
 import ewm.event.model.EventState;
 import ewm.request.dto.RequestDto;
 import ewm.request.mapper.RequestMapper;
@@ -27,8 +27,8 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class RequestServiceImpl implements RequestService {
     private final RequestRepository requestRepository;
-    private final EventRepository eventRepository;
     private final UserClient userClient;
+    private final EventClient eventClient;
 
     @Override
     public List<RequestDto> getRequests(Long userId) {
@@ -39,21 +39,14 @@ public class RequestServiceImpl implements RequestService {
     @Transactional
     @Override
     public RequestDto createRequest(Long userId, Long eventId) {
-        Event event = getEvent(eventId);
+        EventDto event = getEvent(eventId);
         UserDto user = getUser(userId);
         checkRequest(userId, event);
-        Request request = Request.builder()
-                .requester(user.getId())
-                .created(LocalDateTime.now())
-                .status(!event.getRequestModeration()
-                        || event.getParticipantLimit() == 0
-                        ? RequestStatus.CONFIRMED : RequestStatus.PENDING)
-                .event(event)
-                .build();
+        Request request = Request.builder().requester(user.getId()).created(LocalDateTime.now()).status(!event.getRequestModeration() || event.getParticipantLimit() == 0 ? RequestStatus.CONFIRMED : RequestStatus.PENDING).event(event.getId()).build();
         request = requestRepository.save(request);
         if (!event.getRequestModeration() || event.getParticipantLimit() == 0) {
             event.setConfirmedRequests(event.getConfirmedRequests() + 1);
-            eventRepository.save(event);
+            eventClient.updateEvent(event.getId(), event);
         }
         return RequestMapper.INSTANCE.mapToRequestDto(request);
     }
@@ -67,16 +60,43 @@ public class RequestServiceImpl implements RequestService {
             throw new ConflictException("Другой пользователь не может отменить запрос");
         request.setStatus(RequestStatus.CANCELED);
         requestRepository.save(request);
-        Event event = getEvent(request.getEvent().getId());
+        EventDto event = getEvent(request.getEvent());
         event.setConfirmedRequests(event.getConfirmedRequests() - 1);
-        eventRepository.save(event);
+        eventClient.updateEvent(event.getId(), event);
         return RequestMapper.INSTANCE.mapToRequestDto(request);
     }
 
-    private void checkRequest(Long userId, Event event) {
-        if (!requestRepository.findAllByRequesterAndEvent_id(userId, event.getId()).isEmpty())
+    @Override
+    public List<RequestDto> getAllByEvent(Long eventId) {
+        return RequestMapper.INSTANCE.mapListRequests(requestRepository.findAllByEvent(eventId));
+    }
+
+    @Override
+    public List<RequestDto> getAllByIds(List<Long> ids) {
+        return RequestMapper.INSTANCE.mapListRequests(requestRepository.findAllById(ids));
+    }
+
+    @Override
+    @Transactional
+    public List<RequestDto> updateAll(List<RequestDto> requestDtoList) {
+        List<Request> requests = requestDtoList
+                .stream()
+                .map((requestDto -> new Request(
+                        requestDto.getId(),
+                        requestDto.getCreated(),
+                        requestDto.getEvent(),
+                        requestDto.getRequester(),
+                        requestDto.getStatus()
+                )))
+                .toList();
+        requestRepository.saveAll(requests);
+        return RequestMapper.INSTANCE.mapListRequests(requests);
+    }
+
+    private void checkRequest(Long userId, EventDto event) {
+        if (!requestRepository.findAllByRequesterAndEvent(userId, event.getId()).isEmpty())
             throw new ConflictException("нельзя добавить повторный запрос");
-        if (event.getInitiator().equals(userId))
+        if (event.getInitiator().getId().equals(userId))
             throw new ConflictException("инициатор события не может добавить запрос на участие в своём событии");
         if (!event.getState().equals(EventState.PUBLISHED))
             throw new ConflictException("нельзя участвовать в неопубликованном событии");
@@ -84,11 +104,8 @@ public class RequestServiceImpl implements RequestService {
             throw new ConflictException("у события достигнут лимит запросов на участие");
     }
 
-    private Event getEvent(Long eventId) {
-        Optional<Event> event = eventRepository.findById(eventId);
-        if (event.isEmpty())
-            throw new NotFoundException("События с id = " + eventId + " не существует");
-        return event.get();
+    private EventDto getEvent(Long eventId) {
+        return eventClient.getById(eventId);
     }
 
     private UserDto getUser(Long userId) {
@@ -97,8 +114,7 @@ public class RequestServiceImpl implements RequestService {
 
     private Request getRequest(Long requestId) {
         Optional<Request> request = requestRepository.findById(requestId);
-        if (request.isEmpty())
-            throw new NotFoundException("Запроса с id = " + requestId + " не существует");
+        if (request.isEmpty()) throw new NotFoundException("Запроса с id = " + requestId + " не существует");
         return request.get();
     }
 }

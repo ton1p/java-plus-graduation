@@ -2,6 +2,7 @@ package ewm.event.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import ewm.category.dto.CategoryDto;
+import ewm.event.model.EventState;
 import ewm.user.dto.UserDto;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -27,7 +28,7 @@ public class EventDto {
     private Integer participantLimit;
     private LocalDateTime publishedOn;
     private Boolean requestModeration;
-    private String state;
+    private EventState state;
     private String title;
     private Long views;
     private CategoryDto category;

@@ -13,6 +13,10 @@ spring:
           uri: lb://comment-service
           predicates:
             - Path=/users/*/events/*/comments/**, /events/*/comments/**
+        - id: request-service
+          uri: lb://request-service
+          predicates:
+            - Path=/users/*/requests/**, /requests/**
         - id: stats-server
           uri: lb://stats-server
           predicates:
@@ -20,7 +24,7 @@ spring:
         - id: main-service
           uri: lb://main-service
           predicates:
-            - Path=/categories/**, /admin/categories/**, /admin/compilations/**, /admin/events/**, /users/*/requests/**, /users/*/events/**, /users/*/events/*/requests/**, /events/**, /compilations/**
+            - Path=/categories/**, /admin/categories/**, /admin/compilations/**, /admin/events/**, /users/*/events/**, /users/*/events/*/requests/**, /events/**, /compilations/**
 eureka:
   client:
     serviceUrl:

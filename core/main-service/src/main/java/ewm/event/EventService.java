@@ -28,4 +28,6 @@ public interface EventService {
     List<RequestDto> getEventRequests(Long userId, Long eventId);
 
     EventRequestStatusUpdateResult changeStatusEventRequests(Long userId, Long eventId, EventRequestStatusUpdateRequest request);
+
+    EventDto update(Long id, EventDto event);
 }

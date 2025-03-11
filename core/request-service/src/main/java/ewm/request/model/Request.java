@@ -1,6 +1,5 @@
 package ewm.request.model;
 
-import ewm.event.model.Event;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,18 +15,15 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Request {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private Long id;
+    private LocalDateTime created;
 
-	private LocalDateTime created;
+    private Long event;
 
-	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "event_id")
-	private Event event;
+    private Long requester;
 
-	private Long requester;
-
-	private RequestStatus status;
+    private RequestStatus status;
 }

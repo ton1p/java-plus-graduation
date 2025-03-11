@@ -10,11 +10,9 @@ import ewm.event.mapper.EventMapper;
 import ewm.event.model.Event;
 import ewm.event.model.EventState;
 import ewm.event.model.StateAction;
+import ewm.request.client.RequestClient;
 import ewm.request.dto.RequestDto;
-import ewm.request.mapper.RequestMapper;
-import ewm.request.model.Request;
 import ewm.request.model.RequestStatus;
-import ewm.request.repository.RequestRepository;
 import ewm.statistics.service.StatisticsService;
 import ewm.user.client.UserClient;
 import ewm.user.dto.UserDto;
@@ -23,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
@@ -33,13 +32,14 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class EventServiceImpl implements EventService {
     private static final String EVENT_NOT_FOUND_MESSAGE = "Event not found";
     private final EventRepository repository;
     private final CategoryRepository categoryRepository;
     private final StatisticsService statisticsService;
-    private final RequestRepository requestRepository;
     private final UserClient userClient;
+    private final RequestClient requestClient;
 
     @Override
     public List<EventDto> getEvents(Long userId, Integer from, Integer size) {
@@ -72,6 +72,7 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
+    @Transactional
     public EventDto createEvent(Long userId, CreateEventDto eventDto) {
         UserDto userDto = getUser(userId);
         Category category = getCategory(eventDto.getCategory());
@@ -94,6 +95,7 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
+    @Transactional
     public EventDto updateEvent(Long userId, UpdateEventDto eventDto, Long eventId) {
         UserDto userDto = getUser(userId);
         Optional<Event> eventOptional = repository.findById(eventId);
@@ -102,7 +104,7 @@ public class EventServiceImpl implements EventService {
         }
         Event foundEvent = eventOptional.get();
         if (foundEvent.getState() == EventState.PUBLISHED) {
-            throw new ConflictException("Нельзя изменять изменять сообщение, которое опубликовано");
+            throw new ConflictException("Нельзя изменять изменять событие, которое опубликовано");
         }
         updateEventFields(eventDto, foundEvent);
         Event saved = repository.save(foundEvent);
@@ -110,6 +112,7 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
+    @Transactional
     public List<EventDto> publicGetEvents(PublicGetEventRequestDto requestParams,
                                           HttpServletRequest request) {
         LocalDateTime start = (requestParams.getRangeStart() == null) ?
@@ -146,6 +149,7 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
+    @Transactional
     public EventDto publicGetEvent(Long id, HttpServletRequest request) {
         Event event = getEvent(id);
         UserDto userDto = getUser(event.getInitiator());
@@ -164,31 +168,57 @@ public class EventServiceImpl implements EventService {
     public List<RequestDto> getEventRequests(Long userId, Long eventId) {
         getUser(userId);
         getEvent(eventId);
-        return RequestMapper.INSTANCE.mapListRequests(requestRepository.findAllByEvent_id(eventId));
+        return requestClient.findAllByEvent(eventId);
     }
 
     @Override
-    public EventRequestStatusUpdateResult changeStatusEventRequests(Long userId, Long eventId,
-                                                                    EventRequestStatusUpdateRequest request) {
+    @Transactional
+    public EventRequestStatusUpdateResult changeStatusEventRequests(Long userId, Long eventId, EventRequestStatusUpdateRequest request) {
         getUser(userId);
         Event event = getEvent(eventId);
         EventRequestStatusUpdateResult response = new EventRequestStatusUpdateResult();
-        List<Request> requests = requestRepository.findAllById(request.getRequestIds());
+        List<RequestDto> requests = requestClient.findAllById(request.getRequestIds());
         if (request.getStatus().equals(RequestStatus.REJECTED)) {
             checkRequestsStatus(requests);
             requests.forEach(tmpReq -> changeStatus(tmpReq, RequestStatus.REJECTED));
-            requestRepository.saveAll(requests);
-            response.setRejectedRequests(RequestMapper.INSTANCE.mapListRequests(requests));
+            requestClient.updateAll(requests);
+            response.setRejectedRequests(requests);
         } else {
             if (requests.size() + event.getConfirmedRequests() > event.getParticipantLimit())
                 throw new ConflictException("Превышен лимит заявок");
             requests.forEach(tmpReq -> changeStatus(tmpReq, RequestStatus.CONFIRMED));
-            requestRepository.saveAll(requests);
+            requestClient.updateAll(requests);
             event.setConfirmedRequests(event.getConfirmedRequests() + requests.size());
             repository.save(event);
-            response.setConfirmedRequests(RequestMapper.INSTANCE.mapListRequests(requests));
+            response.setConfirmedRequests(requests);
         }
         return response;
+    }
+
+    @Override
+    @Transactional
+    public EventDto update(Long id, EventDto eventDto) {
+        Event event = getEvent(id);
+        Event updatedEvent = new Event(
+                eventDto.getId(),
+                event.getAnnotation(),
+                eventDto.getCreatedOn(),
+                eventDto.getDescription(),
+                eventDto.getEventDate(),
+                eventDto.getPaid(),
+                eventDto.getParticipantLimit(),
+                eventDto.getPublishedOn(),
+                eventDto.getRequestModeration(),
+                eventDto.getState(),
+                eventDto.getTitle(),
+                event.getCategory(),
+                eventDto.getInitiator().getId(),
+                eventDto.getLocation().getLat(),
+                eventDto.getLocation().getLon(),
+                eventDto.getViews(),
+                eventDto.getConfirmedRequests()
+        );
+        return EventMapper.mapEventToEventDto(repository.save(updatedEvent), eventDto.getInitiator());
     }
 
     @Override
@@ -206,6 +236,7 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
+    @Transactional
     public EventDto adminChangeEvent(Long eventId, UpdateEventDto eventDto) {
         Event event = getEvent(eventId);
         UserDto userDto = getUser(event.getInitiator());
@@ -335,6 +366,10 @@ public class EventServiceImpl implements EventService {
                 case SEND_TO_REVIEW -> foundEvent.setState(EventState.PENDING);
             }
         }
+
+        if (eventDto.getConfirmedRequests() != null) {
+            foundEvent.setConfirmedRequests(eventDto.getConfirmedRequests());
+        }
     }
 
 
@@ -347,13 +382,13 @@ public class EventServiceImpl implements EventService {
         return uri + "/" + eventId;
     }
 
-    private void changeStatus(Request request, RequestStatus status) {
+    private void changeStatus(RequestDto request, RequestStatus status) {
         request.setStatus(status);
     }
 
-    private void checkRequestsStatus(List<Request> requests) {
-        Optional<Request> confirmedReq = requests.stream()
-                .filter(request -> request.getStatus().equals(RequestStatus.CONFIRMED))
+    private void checkRequestsStatus(List<RequestDto> requests) {
+        Optional<RequestDto> confirmedReq = requests.stream()
+                .filter(request -> request.getStatus() == RequestStatus.CONFIRMED)
                 .findFirst();
         if (confirmedReq.isPresent())
             throw new ConflictException("Нельзя отменить, уже принятую заявку.");
