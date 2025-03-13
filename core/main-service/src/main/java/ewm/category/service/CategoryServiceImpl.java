@@ -8,8 +8,8 @@ import ewm.category.repository.CategoryRepository;
 import ewm.error.exception.ConflictException;
 import ewm.error.exception.ExistException;
 import ewm.error.exception.NotFoundException;
-import ewm.event.EventRepository;
-import ewm.event.model.Event;
+import ewm.event.client.EventClient;
+import ewm.event.dto.EventDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.PageRequest;
@@ -22,10 +22,10 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class CategoryServiceImpl implements CategoryService {
-    private final CategoryRepository categoryRepository;
-    private final EventRepository eventRepository;
     private static final String CATEGORY_NOT_FOUND = "Category not found";
     private static final String CATEGORY_NAME_EXIST = "Category with this name already exist";
+    private final CategoryRepository categoryRepository;
+    private final EventClient eventClient;
 
     @Override
     public List<CategoryDto> getAll(Integer from, Integer size) {
@@ -74,7 +74,7 @@ public class CategoryServiceImpl implements CategoryService {
         if (category.isEmpty()) {
             throw new NotFoundException(CATEGORY_NOT_FOUND);
         }
-        List<Event> events = eventRepository.findByCategoryId(id);
+        List<EventDto> events = eventClient.findAllByCategoryId(id);
         if (!events.isEmpty()) throw new ConflictException("Есть привязанные события.");
         categoryRepository.deleteById(id);
     }
