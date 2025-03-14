@@ -42,7 +42,7 @@
                 <artifactId>avro-maven-plugin</artifactId>
                 <version>1.11.0</version>
                 <configuration>
-                    <sourceDirectory>${project.basedir}/src/main/java/ewm</sourceDirectory>
+                    <sourceDirectory>${project.basedir}/src/main/protocol</sourceDirectory>
                 </configuration>
                 <executions>
                     <execution>
