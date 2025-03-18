@@ -52,11 +52,6 @@
         </dependency>
         <dependency>
             <groupId>ewm</groupId>
-            <artifactId>stats-dto</artifactId>
-            <version>0.0.1-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>ewm</groupId>
             <artifactId>proto</artifactId>
             <version>0.0.1-SNAPSHOT</version>
             <scope>compile</scope>
