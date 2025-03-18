@@ -1,5 +1,5 @@
 kafka:
-  bootstrap-address: localhost:9092
+  bootstrap-address: ${KAFKA_BOOTSTRAP_ADDRESS:localhost:9092}
   topics:
     user-action: stats.user-actions.v1
     events-similarity: stats.events-similarity.v1

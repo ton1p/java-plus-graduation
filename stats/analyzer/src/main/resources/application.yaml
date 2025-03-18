@@ -1,9 +1,6 @@
 spring:
-  kafka:
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
   application:
-    name: collector
+    name: analyzer
   cloud:
     config:
       discovery:

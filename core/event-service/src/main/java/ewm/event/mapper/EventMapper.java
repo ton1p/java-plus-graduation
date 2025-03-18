@@ -46,7 +46,6 @@ public class EventMapper {
                 .category(categoryDto)
                 .initiator(userDto)
                 .requestModeration(event.getRequestModeration())
-                .views((event.getViews() == null) ? 0L : event.getViews())
                 .confirmedRequests(event.getConfirmedRequests())
                 .build();
     }

@@ -49,61 +49,24 @@ services:
         condition: service_healthy
       event-service:
         condition: service_healthy
+      collector:
+        condition: service_started
+      aggregator:
+        condition: service_started
+      analyzer-db:
+        condition: service_started
     networks:
       - ewm-net
     environment:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
-
-  stats-server:
-    build: stats/stats-server
-    container_name: ewm-stats-server
-    ports:
-      - "9090:9090"
-    depends_on:
-      stats-db:
-        condition: service_healthy
-      config-server:
-        condition: service_healthy
-    networks:
-      - ewm-net
-    environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://stats-db:5432/ewm-stats
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=root
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
-      - SERVER_PORT=9090
-    healthcheck:
-      test: "curl --fail --silent localhost:9090/actuator/health | grep UP || exit 1"
-      timeout: 5s
-      interval: 15s
-      retries: 10
-
-  stats-db:
-    image: postgres:16.1
-    container_name: postgres-ewm-stats-db
-    environment:
-      - POSTGRES_PASSWORD=root
-      - POSTGRES_USER=root
-      - POSTGRES_DB=ewm-stats
-    ports:
-      - "5433:5432"
-    networks:
-      - ewm-net
-    healthcheck:
-      test: pg_isready -q -d $$POSTGRES_DB -U $$POSTGRES_USER
-      timeout: 5s
-      interval: 10s
-      retries: 15
 
   ewm-service:
     build: core/main-service
     container_name: ewm-main-service
     depends_on:
-      ewm-db:
-        condition: service_healthy
       config-server:
         condition: service_healthy
-      stats-server:
+      ewm-db:
         condition: service_healthy
     networks:
       - ewm-net
@@ -140,9 +103,9 @@ services:
     build: core/user-service
     container_name: ewm-user-service
     depends_on:
-      user-db:
-        condition: service_healthy
       config-server:
+        condition: service_healthy
+      user-db:
         condition: service_healthy
     networks:
       - ewm-net
@@ -179,11 +142,11 @@ services:
     build: core/comment-service
     container_name: ewm-comment-service
     depends_on:
-      ewm-service:
+      config-server:
         condition: service_healthy
       comment-db:
         condition: service_healthy
-      config-server:
+      ewm-service:
         condition: service_healthy
     networks:
       - ewm-net
@@ -194,7 +157,7 @@ services:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
       - SERVER_PORT=8083
     healthcheck:
-      test: "curl --fail --silent localhost:8082/actuator/health | grep UP || exit 1"
+      test: "curl --fail --silent localhost:8083/actuator/health | grep UP || exit 1"
       timeout: 5s
       interval: 25s
       retries: 10
@@ -220,11 +183,11 @@ services:
     build: core/request-service
     container_name: ewm-request-service
     depends_on:
+      config-server:
+        condition: service_healthy
       ewm-service:
         condition: service_healthy
       request-db:
-        condition: service_healthy
-      config-server:
         condition: service_healthy
     networks:
       - ewm-net
@@ -235,7 +198,7 @@ services:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
       - SERVER_PORT=8084
     healthcheck:
-      test: "curl --fail --silent localhost:8082/actuator/health | grep UP || exit 1"
+      test: "curl --fail --silent localhost:8084/actuator/health | grep UP || exit 1"
       timeout: 5s
       interval: 25s
       retries: 10
@@ -261,11 +224,11 @@ services:
     build: core/event-service
     container_name: ewm-event-service
     depends_on:
+      config-server:
+        condition: service_healthy
       ewm-service:
         condition: service_healthy
       event-db:
-        condition: service_healthy
-      config-server:
         condition: service_healthy
     networks:
       - ewm-net
@@ -276,7 +239,7 @@ services:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
       - SERVER_PORT=8085
     healthcheck:
-      test: "curl --fail --silent localhost:8082/actuator/health | grep UP || exit 1"
+      test: "curl --fail --silent localhost:8085/actuator/health | grep UP || exit 1"
       timeout: 5s
       interval: 25s
       retries: 10
@@ -302,12 +265,17 @@ services:
     image: confluentinc/confluent-local:7.4.3
     hostname: kafka
     container_name: kafka
+    restart: unless-stopped
     ports:
-      - "9092:9092" # for client connections
+      - "9092:9092"
       - "9101:9101" # JMX
     networks:
       - ewm-net
-    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "kafka-topics", "--bootstrap-server", "kafka:9092", "--list" ]
+      interval: 25s
+      timeout: 10s
+      retries: 10
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
@@ -322,7 +290,8 @@ services:
     image: confluentinc/confluent-local:7.4.3
     container_name: kafka-init-topics
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     networks:
       - ewm-net
     command: "bash -c \
@@ -333,6 +302,89 @@ services:
                              --partitions 1 --replication-factor 1 --if-not-exists \
                              --bootstrap-server kafka:29092'"
     init: true
+
+  analyzer-db:
+    image: postgres:16.1
+    container_name: postgres-ewm-analyzer-db
+    ports:
+      - "5438:5432"
+    networks:
+      - ewm-net
+    environment:
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_USER=root
+      - POSTGRES_DB=ewm-analyzer
+    healthcheck:
+      test: pg_isready -q -d $$POSTGRES_DB -U $$POSTGRES_USER
+      timeout: 5s
+      interval: 10s
+      retries: 15
+
+  collector:
+    build: stats/collector
+    container_name: ewm-collector
+    depends_on:
+      config-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      analyzer-db:
+        condition: service_healthy
+    networks:
+      - ewm-net
+    environment:
+      - KAFKA_BOOTSTRAP_ADDRESS=kafka:29092
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    healthcheck:
+      test: "curl --fail --silent localhost:8086/actuator/health | grep UP || exit 1"
+      timeout: 5s
+      interval: 25s
+      retries: 10
+
+  aggregator:
+    build: stats/aggregator
+    container_name: ewm-aggregator
+    depends_on:
+      config-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      analyzer-db:
+        condition: service_healthy
+    networks:
+      - ewm-net
+    environment:
+      - KAFKA_BOOTSTRAP_ADDRESS=kafka:29092
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    healthcheck:
+      test: "curl --fail --silent localhost:8086/actuator/health | grep UP || exit 1"
+      timeout: 5s
+      interval: 25s
+      retries: 10
+
+  analyzer:
+    build: stats/analyzer
+    container_name: ewm-analyzer
+    depends_on:
+      config-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      analyzer-db:
+        condition: service_healthy
+    networks:
+      - ewm-net
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://analyzer-db:5432/ewm-analyzer
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+      - KAFKA_BOOTSTRAP_ADDRESS=kafka:29092
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    healthcheck:
+      test: "curl --fail --silent localhost:8086/actuator/health | grep UP || exit 1"
+      timeout: 5s
+      interval: 25s
+      retries: 10
 
 networks:
   ewm-net:

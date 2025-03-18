@@ -36,7 +36,7 @@ public class Event {
 
     private Double lat;
     private Double lon;
-    private Long views;
+    private Double rating;
 
     private Integer confirmedRequests = 0;
 }
