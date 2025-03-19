@@ -6,8 +6,8 @@ import ewm.repository.EventSimilarityRepository;
 import ewm.repository.UserActionHistoryRepository;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
-import net.devh.boot.grpc.server.service.GrpcService;
-import ru.practicum.ewm.stats.avro.RecommendationsControllerGrpc;
+import org.springframework.stereotype.Service;
+import ru.practicum.ewm.stats.avro.Recommendations;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -15,17 +15,16 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static ru.practicum.ewm.stats.avro.Recommendations.*;
-
-@GrpcService
+@Service
 @RequiredArgsConstructor
-public class RecommendationService extends RecommendationsControllerGrpc.RecommendationsControllerImplBase {
+public class RecommendationService {
     private final EventSimilarityRepository eventSimilarityRepository;
     private final UserActionHistoryRepository userActionHistoryRepository;
 
-    @Override
-    public void getSimilarEvents(SimilarEventsRequestProto request,
-                                 StreamObserver<RecommendedEventProto> responseObserver) {
+    public void getSimilarEvents(
+            Recommendations.SimilarEventsRequestProto request,
+            StreamObserver<Recommendations.RecommendedEventProto> responseObserver
+    ) {
         List<EventSimilarity> similarities = eventSimilarityRepository.findByEventAOrEventB(request.getEventId(), request.getEventId());
 
         Set<Long> userInteractions = userActionHistoryRepository.findByUserId(request.getUserId())
@@ -39,7 +38,7 @@ public class RecommendationService extends RecommendationsControllerGrpc.Recomme
                 .limit(request.getMaxResults())
                 .forEach(sim -> {
                     long recommendedEvent = sim.getEventA().equals(request.getEventId()) ? sim.getEventB() : sim.getEventA();
-                    responseObserver.onNext(RecommendedEventProto.newBuilder()
+                    responseObserver.onNext(Recommendations.RecommendedEventProto.newBuilder()
                             .setEventId(recommendedEvent)
                             .setScore(sim.getScore())
                             .build());
@@ -48,9 +47,10 @@ public class RecommendationService extends RecommendationsControllerGrpc.Recomme
         responseObserver.onCompleted();
     }
 
-    @Override
-    public void getRecommendationsForUser(UserPredictionsRequestProto request,
-                                          StreamObserver<RecommendedEventProto> responseObserver) {
+    public void getRecommendationsForUser(
+            Recommendations.UserPredictionsRequestProto request,
+            StreamObserver<Recommendations.RecommendedEventProto> responseObserver
+    ) {
         List<UserActionHistory> interactions = userActionHistoryRepository.findByUserId(request.getUserId());
 
         if (interactions.isEmpty()) {
@@ -77,7 +77,7 @@ public class RecommendationService extends RecommendationsControllerGrpc.Recomme
                 .limit(request.getMaxResults())
                 .forEach(sim -> {
                     long recommendedEvent = userInteractions.contains(sim.getEventA()) ? sim.getEventB() : sim.getEventA();
-                    responseObserver.onNext(RecommendedEventProto.newBuilder()
+                    responseObserver.onNext(Recommendations.RecommendedEventProto.newBuilder()
                             .setEventId(recommendedEvent)
                             .setScore(sim.getScore())
                             .build());
@@ -86,9 +86,10 @@ public class RecommendationService extends RecommendationsControllerGrpc.Recomme
         responseObserver.onCompleted();
     }
 
-    @Override
-    public void getInteractionsCount(InteractionsCountRequestProto request,
-                                     StreamObserver<RecommendedEventProto> responseObserver) {
+    public void getInteractionsCount(
+            Recommendations.InteractionsCountRequestProto request,
+            StreamObserver<Recommendations.RecommendedEventProto> responseObserver
+    ) {
         for (long eventId : request.getEventIdList()) {
             double totalWeight = userActionHistoryRepository.findByUserId(eventId)
                     .stream()
@@ -99,7 +100,7 @@ public class RecommendationService extends RecommendationsControllerGrpc.Recomme
                     })
                     .sum();
 
-            responseObserver.onNext(RecommendedEventProto.newBuilder()
+            responseObserver.onNext(Recommendations.RecommendedEventProto.newBuilder()
                     .setEventId(eventId)
                     .setScore((float) totalWeight)
                     .build());
