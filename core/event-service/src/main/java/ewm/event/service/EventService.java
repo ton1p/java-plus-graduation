@@ -23,7 +23,7 @@ public interface EventService {
 
     List<EventDto> publicGetEvents(PublicGetEventRequestDto requestParams, HttpServletRequest request);
 
-    EventDto publicGetEvent(Long eventId, HttpServletRequest request);
+    EventDto publicGetEvent(Long userId, Long eventId, HttpServletRequest request);
 
     List<RequestDto> getEventRequests(Long userId, Long eventId);
 
@@ -34,4 +34,8 @@ public interface EventService {
     List<EventDto> findAllByCategoryId(Long categoryId);
 
     List<EventDto> findAllByIds(List<Long> ids);
+
+    List<EventDto> getRecommendations(long userId, int maxResults);
+
+    void likeEvent(Long eventId, long userId);
 }

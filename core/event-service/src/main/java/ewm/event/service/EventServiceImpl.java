@@ -2,6 +2,8 @@ package ewm.event.service;
 
 import ewm.category.client.CategoryClient;
 import ewm.category.dto.CategoryDto;
+import ewm.client.AnalyzerClient;
+import ewm.client.CollectorClient;
 import ewm.error.exception.ConflictException;
 import ewm.error.exception.NotFoundException;
 import ewm.error.exception.ValidationException;
@@ -14,7 +16,6 @@ import ewm.event.repository.EventRepository;
 import ewm.request.client.RequestClient;
 import ewm.request.dto.RequestDto;
 import ewm.request.model.RequestStatus;
-import ewm.statistics.service.StatisticsService;
 import ewm.user.client.UserClient;
 import ewm.user.dto.UserDto;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,11 +26,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -37,10 +35,12 @@ import java.util.stream.Collectors;
 public class EventServiceImpl implements EventService {
     private static final String EVENT_NOT_FOUND_MESSAGE = "Event not found";
     private final EventRepository repository;
-    private final StatisticsService statisticsService;
     private final UserClient userClient;
     private final RequestClient requestClient;
     private final CategoryClient categoryClient;
+
+    private final CollectorClient collectorClient;
+    private final AnalyzerClient analyzerClient;
 
     @Override
     public List<EventDto> getEvents(Long userId, Integer from, Integer size) {
@@ -58,7 +58,9 @@ public class EventServiceImpl implements EventService {
         if (event.isEmpty()) {
             throw new NotFoundException(EVENT_NOT_FOUND_MESSAGE);
         }
-        return eventToDto(event.get(), userDto, getCategory(event.get().getCategory()));
+        Event found = event.get();
+        collectorClient.sendEventView(userId, found.getId());
+        return eventToDto(found, userDto, getCategory(found.getCategory()));
     }
 
     @Override
@@ -135,33 +137,19 @@ public class EventServiceImpl implements EventService {
                         requestParams.getSize())
         );
 
-        statisticsService.saveStats(request);
-        if (!events.isEmpty()) {
-            LocalDateTime oldestEventPublishedOn = events.stream()
-                    .min(Comparator.comparing(Event::getPublishedOn)).map(Event::getPublishedOn).stream()
-                    .findFirst().orElseThrow();
-            List<String> uris = getListOfUri(events, request.getRequestURI());
-
-            Map<Long, Long> views = statisticsService.getStats(oldestEventPublishedOn, LocalDateTime.now(), uris);
-            events.forEach(event -> event.setViews(views.get(event.getId())));
-            events = repository.saveAll(events);
-        }
         return EventMapper.mapToEventDto(events, this::getUser, this::getCategory);
     }
 
     @Override
     @Transactional
-    public EventDto publicGetEvent(Long id, HttpServletRequest request) {
+    public EventDto publicGetEvent(Long userId, Long id, HttpServletRequest request) {
         Event event = getEvent(id);
         UserDto userDto = getUser(event.getInitiator());
         CategoryDto category = getCategory(event.getCategory());
         if (event.getState() != EventState.PUBLISHED) {
             throw new NotFoundException("Событие не найдено");
         }
-        statisticsService.saveStats(request);
-        Long views = statisticsService.getStats(
-                event.getPublishedOn(), LocalDateTime.now(), List.of(request.getRequestURI())).get(id);
-        event.setViews(views);
+        collectorClient.sendEventView(userId, event.getId());
         event = repository.save(event);
         return EventMapper.mapEventToEventDto(event, userDto, category);
     }
@@ -217,7 +205,7 @@ public class EventServiceImpl implements EventService {
                 eventDto.getInitiator().getId(),
                 eventDto.getLocation().getLat(),
                 eventDto.getLocation().getLon(),
-                eventDto.getViews(),
+                0.0, // todo add rating
                 eventDto.getConfirmedRequests()
         );
         return EventMapper.mapEventToEventDto(repository.save(updatedEvent), eventDto.getInitiator(), eventDto.getCategory());
@@ -231,6 +219,24 @@ public class EventServiceImpl implements EventService {
     @Override
     public List<EventDto> findAllByIds(List<Long> ids) {
         return EventMapper.mapToEventDto(repository.findAllById(ids), this::getUser, this::getCategory);
+    }
+
+    @Override
+    public List<EventDto> getRecommendations(long userId, int maxResults) {
+        return analyzerClient.getRecommendations(userId, maxResults).stream()
+                .sorted((a, b) -> (int) (a.getScore() - b.getScore()))
+                .map((r) -> {
+                    Event event = getEvent(r.getEventId());
+                    UserDto userDto = getUser(event.getInitiator());
+                    CategoryDto category = getCategory(event.getCategory());
+                    return eventToDto(event, userDto, category);
+                }).toList();
+    }
+
+    @Override
+    public void likeEvent(Long eventId, long userId) {
+        getEvent(eventId);
+        collectorClient.sendEventLike(userId, eventId);
     }
 
     @Override
@@ -379,16 +385,6 @@ public class EventServiceImpl implements EventService {
         if (eventDto.getConfirmedRequests() != null) {
             foundEvent.setConfirmedRequests(eventDto.getConfirmedRequests());
         }
-    }
-
-
-    private List<String> getListOfUri(List<Event> events, String uri) {
-        return events.stream().map(Event::getId).map(id -> getUriForEvent(uri, id))
-                .collect(Collectors.toList());
-    }
-
-    private String getUriForEvent(String uri, Long eventId) {
-        return uri + "/" + eventId;
     }
 
     private void changeStatus(RequestDto request, RequestStatus status) {

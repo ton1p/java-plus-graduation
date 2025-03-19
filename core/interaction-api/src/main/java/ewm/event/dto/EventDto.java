@@ -30,7 +30,6 @@ public class EventDto {
     private Boolean requestModeration;
     private EventState state;
     private String title;
-    private Long views;
     private CategoryDto category;
     private UserDto initiator;
     private LocationDto location;

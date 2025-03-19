@@ -1,5 +1,6 @@
 package ewm.request.service;
 
+import ewm.client.CollectorClient;
 import ewm.error.exception.ConflictException;
 import ewm.error.exception.NotFoundException;
 import ewm.event.client.EventClient;
@@ -29,6 +30,7 @@ public class RequestServiceImpl implements RequestService {
     private final RequestRepository requestRepository;
     private final UserClient userClient;
     private final EventClient eventClient;
+    private final CollectorClient collectorClient;
 
     @Override
     public List<RequestDto> getRequests(Long userId) {
@@ -48,6 +50,7 @@ public class RequestServiceImpl implements RequestService {
             event.setConfirmedRequests(event.getConfirmedRequests() + 1);
             eventClient.updateEvent(event.getId(), event);
         }
+        collectorClient.sendEventRegistration(userId, eventId);
         return RequestMapper.INSTANCE.mapToRequestDto(request);
     }
 
